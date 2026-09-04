@@ -12,11 +12,12 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .const import DEFAULT_REGION, api_base
+
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(minutes=5)
 
-API_BASE  = "https://eu-central-1-api2.nvts.co"
 LOGIN_URL = "https://localweb.nvts.co/v1/users/login/v2"
 
 
@@ -92,12 +93,15 @@ class BirdfyCoordinator(DataUpdateCoordinator):
     """Polls Netvue API and stores latest events."""
 
     def __init__(self, hass: HomeAssistant, email: str, password: str,
-                 ucid: str = "", udid: str = "") -> None:
+                 ucid: str = "", udid: str = "",
+                 region: str = DEFAULT_REGION) -> None:
         super().__init__(hass, _LOGGER, name="birdfy", update_interval=SCAN_INTERVAL)
         self._email    = email
         self._password = password
         self._ucid     = ucid
         self._udid     = udid
+        self._region   = region or DEFAULT_REGION
+        self._api_base = api_base(self._region)
         self._token    = ""
         self._userid   = ""
         self._device_id = ""
@@ -133,7 +137,7 @@ class BirdfyCoordinator(DataUpdateCoordinator):
         )
 
     async def _fetch_image_url(self, session: aiohttp.ClientSession, alarm_id: str) -> str:
-        url = f"{API_BASE}/devices/{self._device_id}/events/{alarm_id}/pic"
+        url = f"{self._api_base}/devices/{self._device_id}/events/{alarm_id}/pic"
         async with session.get(url, headers=_auth_headers(self._token, self._userid, self._ucid, self._udid)) as r:
             if r.status == 200:
                 data = await r.json(content_type=None)
@@ -188,7 +192,7 @@ class BirdfyCoordinator(DataUpdateCoordinator):
 
     async def fetch_fresh_record_url(self, alarm_id: str) -> str:
         """Fetch a fresh (non-expired) record URL for a given alarm_id."""
-        url = f"{API_BASE}/devices/{self._device_id}/events/{alarm_id}"
+        url = f"{self._api_base}/devices/{self._device_id}/events/{alarm_id}"
         async with aiohttp.ClientSession() as session:
             await self._ensure_login(session)
             await self._ensure_device(session)
@@ -214,7 +218,7 @@ class BirdfyCoordinator(DataUpdateCoordinator):
         d = datetime.datetime.strptime(date_str, "%Y-%m-%d")
         start_ts = int(datetime.datetime(d.year, d.month, d.day, 0, 0, 0).timestamp() * 1000)
         end_ts   = int(datetime.datetime(d.year, d.month, d.day, 23, 59, 59).timestamp() * 1000)
-        url = f"{API_BASE}/devices/{self._device_id}/events"
+        url = f"{self._api_base}/devices/{self._device_id}/events"
         params = {
             "limit": 100,
             "ignoreAiLabels": "false",
@@ -253,7 +257,7 @@ class BirdfyCoordinator(DataUpdateCoordinator):
             except Exception as e:
                 raise UpdateFailed(f"Device fetch error: {e}") from e
 
-            url = f"{API_BASE}/devices/{self._device_id}/events"
+            url = f"{self._api_base}/devices/{self._device_id}/events"
             params = {"limit": 10, "ignoreAiLabels": "false", "reverse": 1}
             try:
                 async with session.get(

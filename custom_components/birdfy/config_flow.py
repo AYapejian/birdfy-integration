@@ -10,7 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 
-from .const import DOMAIN
+from .const import CONF_REGION, DEFAULT_REGION, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +21,10 @@ UCID = "b3cf543b57"
 STEP_SCHEMA = vol.Schema({
     vol.Required(CONF_EMAIL): str,
     vol.Required(CONF_PASSWORD): str,
+    # Netvue pins each account to the AWS region it was created in. Upstream
+    # assumed eu-central-1; non-EU accounts must set their own (e.g. us-east-2)
+    # or every API call and media fetch fails.
+    vol.Optional(CONF_REGION, default=DEFAULT_REGION): str,
 })
 
 
@@ -75,6 +79,7 @@ class BirdfyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PASSWORD: user_input[CONF_PASSWORD],
                         "ucid": UCID,
                         "udid": udid,
+                        CONF_REGION: (user_input.get(CONF_REGION) or DEFAULT_REGION).strip(),
                     },
                 )
 

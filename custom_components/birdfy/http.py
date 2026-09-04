@@ -18,6 +18,16 @@ _LOGGER = logging.getLogger(__name__)
 
 _SEGMENT_DURATION = 2.0
 
+# Netvue stores media in a per-region bucket named nvs-<region>-videomotion.
+# Upstream pinned this to eu-central-1, so every non-EU account got a 403 from
+# the segment proxy. Match any Netvue media bucket instead of one region, while
+# still refusing arbitrary hosts -- this view is unauthenticated, so it must
+# never become an open proxy.
+_NVS_MEDIA_URL_RE = re.compile(
+    r"^https://nvs-[a-z0-9-]+-videomotion\.s3([.-][a-z0-9-]+)?\.amazonaws\.com/",
+    re.IGNORECASE,
+)
+
 
 def register_views(hass: HomeAssistant) -> None:
     hass.http.register_view(BirdfyM3U8ProxyView(hass))
@@ -192,7 +202,7 @@ class BirdfySegmentProxyView(HomeAssistantView):
         import urllib.parse
         url = urllib.parse.unquote(urllib.parse.unquote(encoded_url))
 
-        if not url.startswith("https://nvs-eu-central-1-videomotion.s3"):
+        if not _NVS_MEDIA_URL_RE.match(url):
             return web.Response(status=403, text="Forbidden")
 
         try:
